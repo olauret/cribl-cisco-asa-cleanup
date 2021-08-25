@@ -1,0 +1,21 @@
+id: default
+groups: {}
+routes:
+  - id: 8dddSa
+    name: cisco_asa_cleanup
+    final: true
+    disabled: false
+    pipeline: cisco_asa_cleanup
+    description: ""
+    clones: []
+    filter: /\s%ASA-/.test(_raw)
+    output: default
+  - id: default
+    name: default
+    final: true
+    disabled: false
+    pipeline: devnull
+    description: ""
+    clones: []
+    filter: "true"
+    output: default

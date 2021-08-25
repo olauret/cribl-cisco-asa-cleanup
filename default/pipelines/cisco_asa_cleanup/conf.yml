@@ -1,0 +1,322 @@
+output: default
+groups:
+  IF9Gmi:
+    name: Drop and/or suppress
+    description: Pick neither, either, or both. Adjust suppression options as required
+    index: 3
+  JE4Inc:
+    name: Extract Fields
+    index: 5
+    description: Pull regex from asa_parse and extract the defined groups
+  498tsT:
+    name: GeoIP Lookup
+    description: requires download and install of a GeoIP lookup DB (maxmind city level is
+      a popular one)
+    disabled: true
+    index: 7
+  JupvCi:
+    name: Rewrite _raw
+    description: Serialize all extracted field into _raw as JSON, remove index time fields
+    index: 9
+    disabled: true
+asyncFuncTimeout: 1000
+functions:
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: |
+        * Extract the asa_code
+        * If asa_code wasn’t extracted, short circuit the pipeline
+        * If asa_code is in asa_drops.csv drop the event
+        * Trim _raw up to the %ASA string
+        * Extract fields for asa_codes în așa_parsing.csv
+        * GeoIP lookup (requires MaxMind or other geoip db)
+        * For selected codes, suppress logs (allow 1 event per some time window)
+        * EITHER: re-create _raw as JSON with selected fields
+            * OR leave _raw and keep some fields as index time
+  - id: eval
+    filter: "true"
+    disabled: null
+    conf:
+      add:
+        - name: asa_code
+          value: _raw.match(/%ASA-\S*-(\d+):/)[1]
+    description: The route already tested if %ASA- appears in the event
+  - id: eval
+    filter: "! asa_code"
+    disabled: false
+    conf:
+      add:
+        - name: _no_matches
+          value: "true"
+    final: true
+    description: If we can't match any ASA code, add no_matches and stop here
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: Drop if code is in asa_drops.csv
+    groupId: IF9Gmi
+  - id: drop
+    filter: C.Lookup('asa_drops.csv').match(asa_code)
+    disabled: false
+    conf: {}
+    final: true
+    groupId: IF9Gmi
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: Use aggregation to suppress if code is in asa_suppress.csv
+    groupId: IF9Gmi
+  - id: aggregation
+    filter: C.Lookup('asa_suppress.csv').match(asa_code)
+    disabled: false
+    conf:
+      passthrough: false
+      preserveGroupBys: false
+      sufficientStatsOnly: false
+      metricsMode: false
+      timeWindow: 30s
+      aggregations:
+        - count(true).as('events')
+        - latest(_raw).as('msg')
+        - latest(source).as('source')
+        - latest(sourcetype).as('sourcetype')
+        - latest(_time).as('_time')
+        - latest('index').as('index')
+      cumulative: false
+      groupbys:
+        - asa_code
+      add:
+        - name: _raw
+          value: "`${msg} repeated=${events}`"
+    groupId: IF9Gmi
+    description: Allow 1 event through per matching asa_code per 30 seconds; include count
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: Or use simple Suppress function (no count appended)
+    groupId: IF9Gmi
+  - id: suppress
+    filter: C.Lookup('asa_suppress.csv').match(asa_code)
+    disabled: true
+    conf:
+      allow: 1
+      suppressPeriodSec: 30
+      dropEventsMode: true
+      maxCacheSize: 50000
+      cacheIdleTimeoutPeriods: 2
+      numEventsIdleTimeoutTrigger: 10000
+      keyExpr: asa_code
+    description: "default: 1 event per 30 seconds per asa_code allowed through for matching
+      events"
+    groupId: IF9Gmi
+  - id: eval
+    filter: "true"
+    disabled: false
+    conf:
+      add:
+        - name: _raw
+          value: _raw.replace(/.*?%ASA-/,'%ASA-')
+        - name: product
+          value: "'ASA'"
+        - name: vendor
+          value: "'Cisco'"
+        - name: vendor_product
+          value: "'Cisco ASA'"
+    description: Trim everything leading up to the ASA code; add a few fields the Splunk TA
+      adds
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: Lookup regex for the ASA code
+    groupId: JE4Inc
+  - id: lookup
+    filter: "true"
+    disabled: null
+    conf:
+      matchMode: exact
+      reloadPeriodSec: 60
+      addToEvent: false
+      inFields:
+        - eventField: asa_code
+          lookupField: asa_code
+      ignoreCase: false
+      file: asa_parsing.csv
+      outFields:
+        - lookupField: regex
+          eventField: __regex
+    groupId: JE4Inc
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: Use result regex to extract fields, and clean up their names
+    groupId: JE4Inc
+  - id: eval
+    filter: __regex
+    disabled: null
+    conf:
+      add:
+        - name: groups
+          value: _raw.match(__regex).groups
+        - name: _no_matches
+          value: groups == undefined
+    groupId: JE4Inc
+  - id: flatten
+    filter: "! _no_matches"
+    disabled: null
+    conf:
+      fields:
+        - groups
+      prefix: ""
+      depth: 5
+      delimiter: _
+    groupId: JE4Inc
+  - id: rename
+    filter: "! _no_matches"
+    disabled: null
+    conf:
+      wildcardDepth: 5
+      baseFields: []
+      renameExpr: "name.startsWith('groups_') ?
+        name.replace('groups_','').replace(/_ALT$/,'').toLowerCase() : name"
+    description: Correct the field names to trim groups_ from the start, and _ALT from the
+      end
+    groupId: JE4Inc
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: "[option; Requires geoip db] Add geoip info"
+  - id: geoip
+    filter: src_ip || dest_ip
+    disabled: true
+    conf:
+      inField: src_ip
+      outField: src_geo
+      file: GeoLite2-City.mmdb
+      additionalFields:
+        - extraInField: dest_ip
+          extraOutField: dest_geo
+    groupId: 498tsT
+  - id: eval
+    filter: src_geo || dest_geo
+    disabled: true
+    conf:
+      remove:
+        - "*.names.de"
+        - "*.names.es"
+        - "*.names.fr"
+        - "*.names.ja"
+        - "*.names.pt-BR"
+        - "*.names.ru"
+        - "*.names.zh-CN"
+        - "*.geoname_id"
+        - "*.continent"
+        - "*.postal"
+        - "*.registered_country"
+        - "*.subdivisions"
+        - "*.country.names"
+        - "*.location.metro_code"
+        - "*.location.accuracy_radius"
+        - "*.location.time_zone"
+    groupId: 498tsT
+  - id: flatten
+    filter: src_geo || dest_geo
+    disabled: true
+    conf:
+      fields:
+        - src_geo
+        - dest_geo
+      prefix: ""
+      depth: 5
+      delimiter: _
+    groupId: 498tsT
+  - id: rename
+    filter: src_geo || dest_geo
+    disabled: true
+    conf:
+      wildcardDepth: 5
+      renameExpr: name.replace(/([^_]+)_.*_([^_]+)/,"$1_$2").replace(/code$/, "country")
+    groupId: 498tsT
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: "[PICK ONE] Rewrite _raw as a JSON object and remove (some?) IT fields"
+  - id: serialize
+    filter: "! _no_matches"
+    disabled: true
+    conf:
+      type: json
+      dstField: _raw
+      fields:
+        - "!_*"
+        - "!cribl*"
+        - "!sourcetype"
+        - "!source"
+        - "!index"
+        - "*"
+    groupId: JupvCi
+  - id: eval
+    filter: "! _no_matches"
+    disabled: true
+    conf:
+      add:
+        - name: _raw
+          value: JSON.parse(_raw)
+      remove:
+        - "*"
+      keep:
+        - _*
+        - cribl*
+        - sourcetype
+        - source
+        - index
+        - asa_code
+        - src_ip
+        - dest_ip
+        - src_lat*
+        - src_lon*
+        - dest_lon*
+        - dest_lat
+        - src_country
+        - dest_country
+        - src_en
+        - dest_en
+    groupId: JupvCi
+    description: List index time fields you want in tstats searches, data models, etc in
+      keep fields below
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: OR keep _raw and selected index time fields
+  - id: eval
+    filter: "true"
+    disabled: false
+    conf:
+      keep:
+        - _*
+        - cribl*
+        - sourcetype
+        - source
+        - index
+        - asa_code
+        - src_ip
+        - dest_ip
+        - src_lat*
+        - src_lon*
+        - dest_lon*
+        - dest_lat
+        - src_country
+        - dest_country
+        - src_en
+        - dest_en
+      remove:
+        - "*"
