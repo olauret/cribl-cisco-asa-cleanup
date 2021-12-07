@@ -27,7 +27,6 @@ functions:
     conf:
       comment: |
         * Extract the asa_code
-        * If asa_code wasn’t extracted, short circuit the pipeline
         * If asa_code is in asa_drops.csv drop the event
         * Trim _raw up to the %ASA string
         * Extract fields for asa_codes în așa_parsing.csv
@@ -42,7 +41,7 @@ functions:
       add:
         - name: asa_code
           value: _raw.match(/%ASA-\S*-(\d+):/)[1]
-    description: The route already tested if %ASA- appears in the event
+    description: Extract the ASA code
   - id: eval
     filter: "! asa_code"
     disabled: false
@@ -68,41 +67,11 @@ functions:
     filter: "true"
     disabled: null
     conf:
-      comment: Use aggregation to suppress if code is in asa_suppress.csv
-    groupId: IF9Gmi
-  - id: aggregation
-    filter: C.Lookup('asa_suppress.csv').match(asa_code)
-    disabled: false
-    conf:
-      passthrough: false
-      preserveGroupBys: false
-      sufficientStatsOnly: false
-      metricsMode: false
-      timeWindow: 30s
-      aggregations:
-        - count(true).as('events')
-        - latest(_raw).as('msg')
-        - latest(source).as('source')
-        - latest(sourcetype).as('sourcetype')
-        - latest(_time).as('_time')
-        - latest('index').as('index')
-      cumulative: false
-      groupbys:
-        - asa_code
-      add:
-        - name: _raw
-          value: "`${msg} repeated=${events}`"
-    groupId: IF9Gmi
-    description: Allow 1 event through per matching asa_code per 30 seconds; include count
-  - id: comment
-    filter: "true"
-    disabled: null
-    conf:
-      comment: Or use simple Suppress function (no count appended)
+      comment: Suppress (keep only 1 every 30 seconds) if code is in asa_suppress.csv
     groupId: IF9Gmi
   - id: suppress
     filter: C.Lookup('asa_suppress.csv').match(asa_code)
-    disabled: true
+    disabled: false
     conf:
       allow: 1
       suppressPeriodSec: 30
@@ -111,9 +80,19 @@ functions:
       cacheIdleTimeoutPeriods: 2
       numEventsIdleTimeoutTrigger: 10000
       keyExpr: asa_code
-    description: "default: 1 event per 30 seconds per asa_code allowed through for matching
-      events"
+    description: 1 event per 30 seconds per asa_code allowed through for matching events
     groupId: IF9Gmi
+  - id: eval
+    filter: suppressCount
+    disabled: false
+    conf:
+      add:
+        - name: _raw
+          value: "`${_raw} repeated=${suppressCount}`"
+        - name: suppressCount
+          value: undefined
+    groupId: IF9Gmi
+    description: "Optional: Append suppressed count to _raw, and drop suppressCount IDF"
   - id: eval
     filter: "true"
     disabled: false
@@ -318,5 +297,6 @@ functions:
         - dest_country
         - src_en
         - dest_en
+        - suppressCount
       remove:
         - "*"

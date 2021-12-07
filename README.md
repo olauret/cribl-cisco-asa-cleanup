@@ -39,6 +39,9 @@ Fields extracted are placed at the top level of the event (eg, metadata or index
 
 ## Release Notes
 
+### Version 1.0.0 - 2021-12-06
+Replaced wonky aggregation function with straight suppression. So much cleaner. Version bumped to 1.0.
+
 ### Version 0.5.2 - 2021-08-11
 fixed bad extract for a few parse lookups
 

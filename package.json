@@ -1,1 +1,1 @@
-{"name":"cribl-cisco-asa-cleanup","version":"0.5.2","author":"Jon Rust - Cribl","description":"Drop, Extract, Suppress based on certain ASA codes in lookup tables","displayName":"cribl-cisco-asa-cleanup"}
+{"name":"cribl_cisco_asa_cleanup","version":"1.0.0","author":"Jon Rust - Cribl","description":"Drop, Extract, Suppress based on certain ASA codes in lookup tables","displayName":"cribl-cisco-asa-cleanup"}
