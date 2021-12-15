@@ -39,6 +39,10 @@ Fields extracted are placed at the top level of the event (eg, metadata or index
 
 ## Release Notes
 
+### Version 1.0.1 - 2021-12-14
+    - Added 199015,199016,199017,199018,313001,313004 to drops
+    - Added 111007,111008,111010,113005,315011,414003,414004,606001,606002,606003,606004,711004 to parsing
+
 ### Version 1.0.0 - 2021-12-06
 Replaced wonky aggregation function with straight suppression. So much cleaner. Version bumped to 1.0.
 
