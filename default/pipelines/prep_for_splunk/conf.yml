@@ -1,0 +1,91 @@
+output: default
+groups:
+  FiV2mI:
+    name: Rewrite _raw
+    description: Serialize all extracted field into _raw as JSON, remove index time fields
+    index: 2
+    disabled: true
+asyncFuncTimeout: 1000
+functions:
+  - id: chain
+    filter: "true"
+    disabled: null
+    conf:
+      processor: cisco_asa_cleanup
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: "[PICK ONE] Rewrite _raw as a JSON object and remove (some?) IT fields"
+  - id: serialize
+    filter: "! _no_matches"
+    disabled: true
+    conf:
+      type: json
+      dstField: _raw
+      fields:
+        - "!_*"
+        - "!cribl*"
+        - "!sourcetype"
+        - "!source"
+        - "!index"
+        - "*"
+    groupId: FiV2mI
+  - id: eval
+    filter: "! _no_matches"
+    disabled: true
+    conf:
+      add:
+        - name: _raw
+          value: JSON.parse(_raw)
+      remove:
+        - "*"
+      keep:
+        - _*
+        - cribl*
+        - sourcetype
+        - source
+        - index
+        - asa_code
+        - src_ip
+        - dest_ip
+        - src_lat*
+        - src_lon*
+        - dest_lon*
+        - dest_lat
+        - src_country
+        - dest_country
+        - src_en
+        - dest_en
+    groupId: FiV2mI
+    description: List index time fields you want in tstats searches, data models, etc in
+      keep fields below
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: OR keep _raw and selected index time fields
+  - id: eval
+    filter: "true"
+    disabled: false
+    conf:
+      keep:
+        - _*
+        - cribl*
+        - sourcetype
+        - source
+        - index
+        - asa_code
+        - src_ip
+        - dest_ip
+        - src_lat*
+        - src_lon*
+        - dest_lon*
+        - dest_lat
+        - src_country
+        - dest_country
+        - src_en
+        - dest_en
+        - suppressCount
+      remove:
+        - "*"

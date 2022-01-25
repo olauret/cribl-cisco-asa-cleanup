@@ -1,0 +1,145 @@
+output: default
+groups: {}
+asyncFuncTimeout: 1000
+functions:
+  - id: chain
+    filter: "true"
+    disabled: null
+    conf:
+      processor: cisco_asa_cleanup
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: Rename CIM to ECS fields
+  - id: rename
+    filter: "true"
+    disabled: null
+    conf:
+      wildcardDepth: 5
+      renameExpr: C.Lookup('splunk2elastic.csv', 'cimfield').match(name,'ecsfield') || name
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: Re-nest dotted names
+  - id: code
+    filter: "true"
+    disabled: false
+    conf:
+      maxNumOfIterations: 5000
+      code: >-
+        const isDict = dict => {return typeof dict === "object" &&
+        !Array.isArray(dict)};
+
+
+        function build_tree(key,val) {
+            let arr_str = key.split('.')
+            //debug
+            __e['__steps'] = []
+            let debug = __e['__steps']
+            // holding spot for the tree
+            let tree = {}
+            // step through the supplied period delimited list
+            for (let i=0; i<(arr_str.length-1); i++) {
+                // first run: if we haven't established the root entry
+                if (i == 0 && ( !isDict(__e[arr_str[i]])) ) {
+                    __e[arr_str[i]] = {}
+                    tree = __e[arr_str[i]]
+                    debug.push('tree created')
+                // first run: if the root dir already exists
+                } else if (i==0) {
+                    tree = __e[arr_str[i]]
+                    debug.push('tree already there')
+                // other runs: if the branch doesn't exist, make it
+                } else {
+                    debug.push(`creating array for ${arr_str[i]}`)
+                    if (!isDict(tree[arr_str[i]])) {
+                        tree[arr_str[i]] = {}
+                        tree = tree[arr_str[i]]
+                    }
+                }
+                debug.push(`TREE: ${JSON.stringify(tree)}`)
+            }
+            // set the last branch to the value
+            tree[arr_str.pop()] = val
+        }
+
+
+        for (let [fld, value] of Object.entries(__e)) {
+            if (/\./.test(fld)) {
+                build_tree(fld,value)
+                __e[fld] = undefined
+            }
+        }
+    description: Re-nest dotted names
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: "ALTERNATE: rename and nest in one go"
+  - id: code
+    filter: "true"
+    disabled: true
+    conf:
+      maxNumOfIterations: 5000
+      code: >-
+        const isDict = dict => {return typeof dict === "object" &&
+        !Array.isArray(dict)};
+
+
+        function build_tree(key,val) {
+            let arr_str = key.split('.')
+            //debug
+            __e['__steps'] = []
+            let debug = __e['__steps']
+            // holding spot for the tree
+            let tree = {}
+            // step through the supplied period delimited list
+            for (let i=0; i<(arr_str.length-1); i++) {
+                // first run: if we haven't established the root entry
+                if (i == 0 && ( !isDict(__e[arr_str[i]])) ) {
+                    __e[arr_str[i]] = {}
+                    tree = __e[arr_str[i]]
+                    debug.push('tree created')
+                // first run: if the root dir already exists
+                } else if (i==0) {
+                    tree = __e[arr_str[i]]
+                    debug.push('tree already there')
+                // other runs: if the branch doesn't exist, make it
+                } else {
+                    debug.push(`creating array for ${arr_str[i]}`)
+                    if (!isDict(tree[arr_str[i]])) {
+                        tree[arr_str[i]] = {}
+                        tree = tree[arr_str[i]]
+                    }
+                }
+                debug.push(`TREE: ${JSON.stringify(tree)}`)
+            }
+            // set the last branch to the value
+            tree[arr_str.pop()] = val
+        }
+
+
+        for (let [origfield, value] of Object.entries(__e)) {
+            let newfield = C.Lookup('splunk2elastic.csv', 'cimfield').match(origfield,'ecsfield')
+            if (newfield) {
+                //__e[newfield] = value
+                build_tree(newfield,value)
+                __e[origfield] = undefined
+            }
+        }
+    description: Does the rename and the re-nesting in one Code command
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: Make numbers actually be numbers
+  - id: numerify
+    filter: "true"
+    disabled: false
+    conf:
+      format: none
+      ignoreFields: []
+      filterExpr: ""
+      digits: 0
