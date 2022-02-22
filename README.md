@@ -52,6 +52,9 @@ Fields extracted are placed at the top level of the event (eg, metadata or index
 
 ## Release Notes
 
+### Version 1.1.2 - 2022-02-22
+    - The people responsible for the sacking have now been sacked
+
 ### Version 1.1.1 - 2022-02-22
     - Dummy release to fix bad packaging
 

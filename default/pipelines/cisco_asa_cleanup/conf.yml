@@ -8,7 +8,7 @@ groups:
     name: Extract Fields
     index: 6
     description: Pull regex from asa_parse and extract the defined groups
-    disabled: true
+    disabled: false
   498tsT:
     name: "[Optional] GeoIP Lookup"
     description: requires download and install of a GeoIP lookup DB (maxmind city level is
@@ -16,10 +16,10 @@ groups:
     disabled: true
     index: 7
   sf9vO1:
-    name: Output Options
+    name: Output Formatting Options
     description: Pick either Splunk or ECS chained pipelines
     index: 8
-    disabled: true
+    disabled: false
 asyncFuncTimeout: 1000
 functions:
   - id: comment
@@ -31,15 +31,22 @@ functions:
     filter: "true"
     disabled: null
     conf:
-      comment: |
+      comment: >
         Summary of work:
+
         * Extract the asa_code
+
         * If asa_code is in asa_drops.csv drop the event
+
+        * If asa_code is in asa_suppress.csv allow 1 event per some time window
+
         * Trim _raw up to the %ASA string
+
         * Extract fields for asa_codes în așa_parsing.csv
+
         * GeoIP lookup (requires MaxMind or other geoip db)
-        * For selected codes, suppress logs (allow 1 event per some time window)
-        * OUTPUT: send using Splunk-like fields, or send using ECS fields
+
+        * OUTPUT Formatting: send using Splunk-like fields, or send using ECS fields
   - id: eval
     filter: "true"
     disabled: null
@@ -105,7 +112,7 @@ functions:
       adds
   - id: lookup
     filter: "true"
-    disabled: true
+    disabled: false
     conf:
       matchMode: exact
       reloadPeriodSec: 60
@@ -122,7 +129,7 @@ functions:
     description: Lookup regex for the ASA code
   - id: eval
     filter: __regex
-    disabled: true
+    disabled: false
     conf:
       add:
         - name: groups
@@ -133,7 +140,7 @@ functions:
     description: Use resulting regex to extract fields, and clean up some
   - id: flatten
     filter: "! _no_matches"
-    disabled: true
+    disabled: false
     conf:
       fields:
         - groups
@@ -144,7 +151,7 @@ functions:
     description: flatten the matching groups
   - id: rename
     filter: "! _no_matches"
-    disabled: true
+    disabled: false
     conf:
       wildcardDepth: 5
       baseFields: []
@@ -206,7 +213,7 @@ functions:
     groupId: 498tsT
   - id: chain
     filter: "true"
-    disabled: true
+    disabled: false
     conf:
       processor: prep_for_splunk
     groupId: sf9vO1
