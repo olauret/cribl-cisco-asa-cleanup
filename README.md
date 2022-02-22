@@ -1,9 +1,11 @@
 # Cisco ASA Clean-up
 ----
 
-This pack uses 3 lookup files to help drop events, suppress events, and extract fields from surviving events. Using lookup files provides a much cleaner management of potentially hundreds, or thousands, of event types.
+This pack uses lookup files to help drop events, suppress events, and extract fields from surviving events. Using lookup files provides a much cleaner management of potentially hundreds, or thousands, of event types. 
 
-After field extractions, you can either leave (some of) them as index time fields useful for tstats, accelerated data models, etc. Or you you can re-write _raw as a JSON object with the newly extracted fields.
+* **For Splunk Delivery**: You can either leave (some of) the fields as index time useful for tstats, accelerated data models, etc. Or you you can re-write _raw as a JSON object with the newly extracted fields. Splunk delivery is set-up in `prep_for_splunk`, a pipeline chained from the `cisco_asa_cleanup` pipeline by default.
+
+* **For Elastic Delivery**: A lookup is used to translate field naming convention from Splunk CIM to Elastic ECS. This lookup is called from the `prep_for_ECS` pipeline, which is optionally chained from the `cisco_asa_cleanup` pipeline.
 
 
 ## Requirements Section
@@ -17,20 +19,31 @@ Before you activate the Pack on live data:
     * The field `_no_matches` will be added to each event with a regex defined
         * If no matches are found, it will be `true` meaning the regex failed
     * If a regex uses the same named group twice (eg, `(?<group>foo)|(?<group>bar)`) you'll need to name the second with _ALT. Eg: `group_ALT`. This will be undone after extraction automatically.
-    * There are 99 codes included by default based on previous experience. YMMV.
+    * There are 179 codes included by default based on previous experience. YMMV.
+    * We attempted to maintain compliance with the Splunk CIM in naming fields
 * The **asa_suppress.csv** file contains ASA codes that should only be allowed 1 event per 30 seconds per worker process
     * There are 2 codes included by default based on previous experience. YMMV.
+* The **splunk2elastic.csv** file contains Splunk CIM to ECS field name mappings
+    * Not every field name in either model is covered
+    * This lookup is used in the **prep_for_ECS** pipeline
+    * The `prep_for_ECS` pipeline will create nested objects for names with periods in them
+
+You're encouraged to add to the included CSVs and submit a pull request!
 
 ## Extracted fields
 
-Fields extracted are placed at the top level of the event (eg, metadata or index time field). You can choose either to reserialize them, replacing _raw with a JSON payload of selected events. OR leave _raw alone and keep some fields (as index time data). 
+Fields extracted are placed at the top level of the event (eg, metadata or index time field). You can choose either to:
+    * Reserialize them, replacing _raw with a JSON payload of selected events
+    * Leave _raw alone and keep some fields (as index time data)
+    * Use the `prep_for_ECS` pipeline to translate them to ECS naming conventions and format
 
 ## Using The Pack
 
 1. Install (Packs -> Add New -> Import from file)
 2. Inspect the optional pipeline rules and select accordingly
+    - In particular, **if you're sending to Elastic** you'll want to disable rule 22 and activate rule 24 (in the `cisco_asa_cleanup` pipeline)
 3. Download and install a GeoIP db if GeoIP enhancement is desired (see [maxmind.com](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data?lang=en))
-4. Modify the 3 lookup files as required for your needs (provided entries may or may not meet your needs)
+4. Modify the lookup files as required for your needs (provided entries may or may not meet your needs)
     * We recommend you download the lookup files to your local system and manage versioning there. Re-upload the files when modified.
 5. Point your Cisco ASA log stream to the Pack and an appropriate destination
     * If your ASA logs come in on a dedicated source, you can apply the pack as a pre-processing pipeline
@@ -38,6 +51,14 @@ Fields extracted are placed at the top level of the event (eg, metadata or index
 
 
 ## Release Notes
+
+### Version 1.1.1 - 2022-02-22
+    - Dummy release to fix bad packaging
+
+### Version 1.1.0 - 2022-01-19
+    - Added many codes to parsing lookup from the Elastic ASA package
+    - Added a pipeline to translate Splunk CIM fields to ECS fields
+    - Adjusted main pipeline to Chain either the pre_for_splunk or prep_for_ECS pipeline
 
 ### Version 1.0.1 - 2021-12-14
     - Added 199015,199016,199017,199018,313001,313004 to drops

@@ -2,11 +2,6 @@ output: default
 groups: {}
 asyncFuncTimeout: 1000
 functions:
-  - id: chain
-    filter: "true"
-    disabled: null
-    conf:
-      processor: cisco_asa_cleanup
   - id: comment
     filter: "true"
     disabled: null

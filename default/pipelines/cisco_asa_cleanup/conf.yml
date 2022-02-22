@@ -3,21 +3,22 @@ groups:
   IF9Gmi:
     name: Drop and/or suppress
     description: Pick neither, either, or both. Adjust suppression options as required
-    index: 3
+    index: 4
   JE4Inc:
     name: Extract Fields
-    index: 5
+    index: 6
     description: Pull regex from asa_parse and extract the defined groups
+    disabled: true
   498tsT:
-    name: GeoIP Lookup
+    name: "[Optional] GeoIP Lookup"
     description: requires download and install of a GeoIP lookup DB (maxmind city level is
       a popular one)
     disabled: true
     index: 7
-  JupvCi:
-    name: Rewrite _raw
-    description: Serialize all extracted field into _raw as JSON, remove index time fields
-    index: 9
+  sf9vO1:
+    name: Output Options
+    description: Pick either Splunk or ECS chained pipelines
+    index: 8
     disabled: true
 asyncFuncTimeout: 1000
 functions:
@@ -25,15 +26,20 @@ functions:
     filter: "true"
     disabled: null
     conf:
+      comment: Please see the README for how to use this pack
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
       comment: |
+        Summary of work:
         * Extract the asa_code
         * If asa_code is in asa_drops.csv drop the event
         * Trim _raw up to the %ASA string
         * Extract fields for asa_codes în așa_parsing.csv
         * GeoIP lookup (requires MaxMind or other geoip db)
         * For selected codes, suppress logs (allow 1 event per some time window)
-        * EITHER: re-create _raw as JSON with selected fields
-            * OR leave _raw and keep some fields as index time
+        * OUTPUT: send using Splunk-like fields, or send using ECS fields
   - id: eval
     filter: "true"
     disabled: null
@@ -43,7 +49,7 @@ functions:
           value: _raw.match(/%ASA-\S*-(\d+):/)[1]
     description: Extract the ASA code
   - id: eval
-    filter: "! asa_code"
+    filter: "!asa_code"
     disabled: false
     conf:
       add:
@@ -51,24 +57,13 @@ functions:
           value: "true"
     final: true
     description: If we can't match any ASA code, add no_matches and stop here
-  - id: comment
-    filter: "true"
-    disabled: null
-    conf:
-      comment: Drop if code is in asa_drops.csv
-    groupId: IF9Gmi
   - id: drop
     filter: C.Lookup('asa_drops.csv').match(asa_code)
     disabled: false
     conf: {}
     final: true
     groupId: IF9Gmi
-  - id: comment
-    filter: "true"
-    disabled: null
-    conf:
-      comment: Suppress (keep only 1 every 30 seconds) if code is in asa_suppress.csv
-    groupId: IF9Gmi
+    description: If the code is present in the asa_drops lookup, we drop the event
   - id: suppress
     filter: C.Lookup('asa_suppress.csv').match(asa_code)
     disabled: false
@@ -84,7 +79,7 @@ functions:
     groupId: IF9Gmi
   - id: eval
     filter: suppressCount
-    disabled: false
+    disabled: true
     conf:
       add:
         - name: _raw
@@ -92,7 +87,7 @@ functions:
         - name: suppressCount
           value: undefined
     groupId: IF9Gmi
-    description: "Optional: Append suppressed count to _raw, and drop suppressCount IDF"
+    description: "Optional: Append suppressed count to _raw, and drop suppressCount ITF"
   - id: eval
     filter: "true"
     disabled: false
@@ -108,15 +103,9 @@ functions:
           value: "'Cisco ASA'"
     description: Trim everything leading up to the ASA code; add a few fields the Splunk TA
       adds
-  - id: comment
-    filter: "true"
-    disabled: null
-    conf:
-      comment: Lookup regex for the ASA code
-    groupId: JE4Inc
   - id: lookup
     filter: "true"
-    disabled: null
+    disabled: true
     conf:
       matchMode: exact
       reloadPeriodSec: 60
@@ -130,15 +119,10 @@ functions:
         - lookupField: regex
           eventField: __regex
     groupId: JE4Inc
-  - id: comment
-    filter: "true"
-    disabled: null
-    conf:
-      comment: Use result regex to extract fields, and clean up their names
-    groupId: JE4Inc
+    description: Lookup regex for the ASA code
   - id: eval
     filter: __regex
-    disabled: null
+    disabled: true
     conf:
       add:
         - name: groups
@@ -146,9 +130,10 @@ functions:
         - name: _no_matches
           value: groups == undefined
     groupId: JE4Inc
+    description: Use resulting regex to extract fields, and clean up some
   - id: flatten
     filter: "! _no_matches"
-    disabled: null
+    disabled: true
     conf:
       fields:
         - groups
@@ -156,9 +141,10 @@ functions:
       depth: 5
       delimiter: _
     groupId: JE4Inc
+    description: flatten the matching groups
   - id: rename
     filter: "! _no_matches"
-    disabled: null
+    disabled: true
     conf:
       wildcardDepth: 5
       baseFields: []
@@ -167,11 +153,6 @@ functions:
     description: Correct the field names to trim groups_ from the start, and _ALT from the
       end
     groupId: JE4Inc
-  - id: comment
-    filter: "true"
-    disabled: null
-    conf:
-      comment: "[option; Requires geoip db] Add geoip info"
   - id: geoip
     filter: src_ip || dest_ip
     disabled: true
@@ -223,80 +204,17 @@ functions:
       wildcardDepth: 5
       renameExpr: name.replace(/([^_]+)_.*_([^_]+)/,"$1_$2").replace(/code$/, "country")
     groupId: 498tsT
-  - id: comment
+  - id: chain
     filter: "true"
-    disabled: null
-    conf:
-      comment: "[PICK ONE] Rewrite _raw as a JSON object and remove (some?) IT fields"
-  - id: serialize
-    filter: "! _no_matches"
     disabled: true
     conf:
-      type: json
-      dstField: _raw
-      fields:
-        - "!_*"
-        - "!cribl*"
-        - "!sourcetype"
-        - "!source"
-        - "!index"
-        - "*"
-    groupId: JupvCi
-  - id: eval
-    filter: "! _no_matches"
+      processor: prep_for_splunk
+    groupId: sf9vO1
+    description: Sending to Splunk
+  - id: chain
+    filter: "true"
     disabled: true
     conf:
-      add:
-        - name: _raw
-          value: JSON.parse(_raw)
-      remove:
-        - "*"
-      keep:
-        - _*
-        - cribl*
-        - sourcetype
-        - source
-        - index
-        - asa_code
-        - src_ip
-        - dest_ip
-        - src_lat*
-        - src_lon*
-        - dest_lon*
-        - dest_lat
-        - src_country
-        - dest_country
-        - src_en
-        - dest_en
-    groupId: JupvCi
-    description: List index time fields you want in tstats searches, data models, etc in
-      keep fields below
-  - id: comment
-    filter: "true"
-    disabled: null
-    conf:
-      comment: OR keep _raw and selected index time fields
-  - id: eval
-    filter: "true"
-    disabled: false
-    conf:
-      keep:
-        - _*
-        - cribl*
-        - sourcetype
-        - source
-        - index
-        - asa_code
-        - src_ip
-        - dest_ip
-        - src_lat*
-        - src_lon*
-        - dest_lon*
-        - dest_lat
-        - src_country
-        - dest_country
-        - src_en
-        - dest_en
-        - suppressCount
-      remove:
-        - "*"
+      processor: prep_for_ECS
+    groupId: sf9vO1
+    description: Sending to Elastic
