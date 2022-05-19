@@ -39,9 +39,9 @@ Fields extracted are placed at the top level of the event (eg, metadata or index
 
 ## Using The Pack
 
-1. Install (Packs -> Add New -> Import from file)
+1. Install (Packs -> Add New -> Add from Dispensary)
 2. Inspect the optional pipeline rules and select accordingly
-    - In particular, **if you're sending to Elastic** you'll want to disable rule 22 and activate rule 24 (in the `cisco_asa_cleanup` pipeline)
+    - In particular, **if you're sending to Elastic** you'll want to disable rule 17 and activate rule 18 (in the `cisco_asa_cleanup` pipeline)
 3. Download and install a GeoIP db if GeoIP enhancement is desired (see [maxmind.com](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data?lang=en))
 4. Modify the lookup files as required for your needs (provided entries may or may not meet your needs)
     * We recommend you download the lookup files to your local system and manage versioning there. Re-upload the files when modified.
@@ -51,6 +51,9 @@ Fields extracted are placed at the top level of the event (eg, metadata or index
 
 
 ## Release Notes
+
+## Version 1.1.3 - 
+    - Readme Clean up to reference the correct (Splunk vs Elastic) reference lines
 
 ### Version 1.1.2 - 2022-02-22
     - The people responsible for the sacking have now been sacked
