@@ -52,6 +52,9 @@ Fields extracted are placed at the top level of the event (eg, metadata or index
 
 ## Release Notes
 
+### Version 1.1.3 - 2022-08-01
+    - Fixed bad regex for 106100, 106102 -- missing backslash before right bracket in last group
+
 ### Version 1.1.2 - 2022-02-22
     - The people responsible for the sacking have now been sacked
 
