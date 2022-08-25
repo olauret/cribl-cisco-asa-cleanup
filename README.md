@@ -52,13 +52,8 @@ Fields extracted are placed at the top level of the event (eg, metadata or index
 
 ## Release Notes
 
-<<<<<<< HEAD
 ### Version 1.1.3 - 2022-08-01
     - Fixed bad regex for 106100, 106102 -- missing backslash before right bracket in last group
-=======
-## Version 1.1.3 - 
-    - Readme Clean up to reference the correct (Splunk vs Elastic) reference lines
->>>>>>> 6efd85b431a3ae1baa05472e6dd1fff5f9900545
 
 ### Version 1.1.2 - 2022-02-22
     - The people responsible for the sacking have now been sacked
