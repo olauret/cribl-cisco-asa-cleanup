@@ -40,6 +40,7 @@ functions:
         - cribl*
         - sourcetype
         - source
+        - host
         - index
         - asa_code
         - src_ip
@@ -69,6 +70,7 @@ functions:
         - cribl*
         - sourcetype
         - source
+        - host
         - index
         - asa_code
         - src_ip
